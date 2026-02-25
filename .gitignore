@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment variables / secrets
+.env
+.env.*
+
+# Logs
+*.log
+server.log
+
+# Local tool metadata
+.claude/
+
+# Runtime data
+uploads/
+data/*.db

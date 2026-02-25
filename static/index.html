@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Open Anki Quiz</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header>
+            <h1 id="header-title" onclick="showHome()">Open Anki Quiz</h1>
+        </header>
+
+        <!-- Home: Upload + Set list -->
+        <div id="home-view">
+            <section class="upload-section">
+                <h2>Import Questions from PDF</h2>
+                <form id="upload-form">
+                    <div class="form-group">
+                        <label for="pdf-file">PDF File</label>
+                        <input type="file" id="pdf-file" accept=".pdf" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="set-name">Set Name (optional)</label>
+                        <input type="text" id="set-name" placeholder="e.g. Biostat 706 Exam 1">
+                    </div>
+                    <div class="form-group">
+                        <label for="prompt">Prompt / Instructions (optional)</label>
+                        <textarea id="prompt" rows="3" placeholder="e.g. Extract all multiple choice questions and generate explanations..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="references">Reference PDF paths (comma-separated, optional)</label>
+                        <textarea id="references" rows="2" placeholder="e.g. /path/to/Lecture 01.pdf, /path/to/Lecture 02.pdf"></textarea>
+                    </div>
+                    <button type="submit" id="upload-btn">Upload & Extract</button>
+                </form>
+                <div id="upload-status" class="hidden"></div>
+            </section>
+
+            <section class="sets-section">
+                <h2>Question Sets</h2>
+                <div id="sets-list"></div>
+            </section>
+        </div>
+
+        <!-- Quiz view: 3-column layout -->
+        <!-- Sidebar toggle buttons (always visible, fixed position) -->
+        <button class="sidebar-toggle sidebar-toggle-left hidden" id="toggle-cat-btn" onclick="toggleCategorySidebar()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <button class="sidebar-toggle sidebar-toggle-right hidden" id="toggle-chat-btn" onclick="toggleChatSidebar()">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
+
+        <div id="quiz-view" class="hidden left-collapsed right-collapsed">
+            <!-- Left: Category Sidebar -->
+            <aside id="category-sidebar" class="sidebar sidebar-left">
+                <div class="sidebar-content">
+                    <h3>Categories</h3>
+                    <ul id="category-list"></ul>
+                </div>
+            </aside>
+
+            <!-- Center: Quiz Main -->
+            <main id="quiz-main">
+                <div class="quiz-header">
+                    <button class="back-btn" onclick="showHome()">&larr; Back</button>
+                    <div class="progress-bar">
+                        <div id="progress-fill"></div>
+                    </div>
+                    <span id="progress-text">0/0</span>
+                    <button class="append-btn" onclick="openAppendModal()" title="Add more questions">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                </div>
+
+                <div id="quiz-card">
+                    <div id="question-category" class="category-tag"></div>
+                    <div id="question-number" class="question-num"></div>
+                    <div id="question-text" class="question-text"></div>
+                    <div id="options-list" class="options-list"></div>
+
+                    <!-- Shown after answering -->
+                    <div id="result-area" class="hidden">
+                        <div id="result-banner"></div>
+                        <div id="explanation-area"></div>
+                        <div class="action-buttons">
+                            <button id="master-btn" class="master-btn" onclick="markMastered()">I know this</button>
+                            <button id="next-btn" class="next-btn" onclick="nextQuestion()">Next</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- All done -->
+                <div id="done-card" class="hidden">
+                    <h2>All Done!</h2>
+                    <p>You've mastered all questions in this set.</p>
+                    <button onclick="showHome()">Back to Home</button>
+                </div>
+            </main>
+
+            <!-- Right: Chat Sidebar -->
+            <aside id="chat-sidebar" class="sidebar sidebar-right">
+                <div class="sidebar-content">
+                    <h3>AI Assistant</h3>
+                    <div id="chat-messages"></div>
+                    <div class="chat-input-area">
+                        <textarea id="chat-input" placeholder="Ask about this question..." rows="1"></textarea>
+                        <button id="chat-send-btn" onclick="sendChatMessage()">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Confirm Delete Modal -->
+        <div id="confirm-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <h3 id="confirm-title">Delete Set</h3>
+                <p id="confirm-message">Are you sure you want to delete this set? This cannot be undone.</p>
+                <div class="modal-actions">
+                    <button class="modal-cancel-btn" onclick="closeConfirmModal()">Cancel</button>
+                    <button class="modal-confirm-btn" id="confirm-ok-btn">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Append Questions Modal -->
+        <div id="append-modal" class="modal-overlay hidden">
+            <div class="modal-card modal-card-wide">
+                <h3>Add Questions</h3>
+                <form id="append-form" onsubmit="handleAppend(event)">
+                    <div class="form-group">
+                        <label for="append-prompt">Prompt / Description *</label>
+                        <textarea id="append-prompt" rows="4" placeholder="e.g. Generate 10 questions about hypothesis testing..." required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="append-file">PDF File (optional)</label>
+                        <input type="file" id="append-file" accept=".pdf">
+                    </div>
+                    <div class="form-group">
+                        <label for="append-references">Reference PDF paths (optional)</label>
+                        <textarea id="append-references" rows="2" placeholder="e.g. /path/to/Lecture 03.pdf"></textarea>
+                    </div>
+                    <div id="append-status" class="hidden"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="modal-cancel-btn" onclick="closeAppendModal()">Cancel</button>
+                        <button type="submit" class="modal-confirm-btn" id="append-submit-btn" style="background: var(--accent);">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
