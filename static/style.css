@@ -405,6 +405,47 @@ button {
     white-space: nowrap;
 }
 
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.sidebar-header h3 {
+    margin-bottom: 0;
+}
+
+/* Clear chat button */
+.clear-chat-btn {
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    padding: 4px 6px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.clear-chat-btn:hover {
+    color: var(--wrong);
+    background: var(--wrong-bg);
+}
+
+/* Guided dialogue header */
+.guided-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    font-weight: 600;
+}
+
 /* Sidebar Toggle Buttons */
 .sidebar-toggle {
     position: fixed;
@@ -435,6 +476,7 @@ button {
 .sidebar-toggle-right {
     top: 68px;
     right: 8px;
+    transition: right 0.3s ease;
 }
 
 /* Quiz Main */
@@ -919,6 +961,384 @@ button {
     to { transform: rotate(360deg); }
 }
 
+/* ═══════════════════════════════════════════
+   Type Selector & Badges
+   ═══════════════════════════════════════════ */
+
+.form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.type-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+    vertical-align: middle;
+    margin-left: 8px;
+    text-transform: uppercase;
+}
+
+.type-badge.type-mcq {
+    background: rgba(108, 155, 255, 0.15);
+    color: var(--accent);
+}
+
+.type-badge.type-open {
+    background: rgba(255, 183, 77, 0.15);
+    color: #ffb74d;
+}
+
+/* ═══════════════════════════════════════════
+   "I Don't Know" Button
+   ═══════════════════════════════════════════ */
+
+#idk-area {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.idk-btn {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px dashed var(--border);
+    padding: 10px 24px;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.idk-btn:hover {
+    color: var(--wrong);
+    border-color: var(--wrong);
+    background: var(--wrong-bg);
+}
+
+/* ═══════════════════════════════════════════
+   Open Question Area
+   ═══════════════════════════════════════════ */
+
+#open-question-area {
+    margin-top: 16px;
+}
+
+/* Open question: style question text like a card (matching answer style) */
+.open-question-text-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    line-height: 1.8;
+}
+
+#open-answer-area {
+    background: var(--bg);
+    border: 1px solid var(--correct);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+#open-answer-area h4 {
+    color: var(--correct);
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+}
+
+#open-answer-content {
+    font-size: 0.95rem;
+    line-height: 1.8;
+}
+
+.open-action-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.reveal-btn {
+    flex: 1;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    font-weight: 600;
+    padding: 10px 20px;
+}
+
+.reveal-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(108, 155, 255, 0.06);
+}
+
+/* ═══════════════════════════════════════════
+   Guided Dialogue
+   ═══════════════════════════════════════════ */
+
+.guided-dialogue {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.guided-messages {
+    max-height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+    min-height: 60px;
+}
+
+.guided-input-area {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+}
+
+.guided-input-wrapper {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+}
+
+.guided-input-wrapper textarea {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 40px 8px 12px;
+    font-size: 0.88rem;
+    resize: none;
+    max-height: 100px;
+    line-height: 1.5;
+    font-family: inherit;
+}
+
+.guided-input-wrapper textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+/* Voice Button */
+.voice-btn {
+    position: absolute;
+    right: 6px;
+    bottom: 4px;
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    padding: 4px 6px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.voice-btn:hover {
+    color: var(--accent);
+    background: rgba(108, 155, 255, 0.1);
+}
+
+.voice-btn.recording {
+    color: var(--wrong);
+    animation: pulse-recording 1s infinite;
+}
+
+@keyframes pulse-recording {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+#guided-send-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 8px 10px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+#guided-send-btn:hover {
+    background: var(--accent-hover);
+}
+
+#guided-send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* AI suggested mastered */
+.master-btn.ai-suggested {
+    background: var(--correct);
+    color: #fff;
+    border-color: var(--correct);
+    animation: pulse-glow 1.5s ease-in-out 3;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+    50% { box-shadow: 0 0 12px 4px rgba(76, 175, 80, 0.4); }
+}
+
+/* ═══════════════════════════════════════════
+   Markdown + KaTeX Styling
+   ═══════════════════════════════════════════ */
+
+.markdown-content {
+    line-height: 1.8;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+    margin-top: 16px;
+    margin-bottom: 8px;
+}
+
+.markdown-content h2 {
+    font-size: 1.15rem;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+}
+
+.markdown-content h3 {
+    font-size: 1.05rem;
+}
+
+.markdown-content p {
+    margin-bottom: 8px;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin-left: 20px;
+    margin-bottom: 8px;
+}
+
+.markdown-content li {
+    margin-bottom: 4px;
+}
+
+.markdown-content code {
+    background: rgba(108, 155, 255, 0.12);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+    font-size: 0.85em;
+}
+
+.markdown-content pre {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px 0;
+    overflow-x: auto;
+}
+
+.markdown-content pre code {
+    background: none;
+    padding: 0;
+}
+
+.markdown-content strong {
+    font-weight: 700;
+}
+
+.markdown-content hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+}
+
+.markdown-content blockquote {
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
+    color: var(--text-dim);
+    margin: 8px 0;
+}
+
+/* KaTeX display math */
+.markdown-content .katex-display {
+    margin: 12px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px 0;
+}
+
+.markdown-content .katex {
+    font-size: 1.05em;
+}
+
+.katex-error {
+    color: var(--wrong);
+    font-size: 0.85rem;
+}
+
+/* Chat messages also use markdown */
+.chat-msg.assistant {
+    line-height: 1.7;
+}
+
+.chat-msg .katex-display {
+    margin: 8px 0;
+    overflow-x: auto;
+}
+
+.chat-msg .katex {
+    font-size: 0.95em;
+}
+
+/* ═══════════════════════════════════════════
+   Done Card updates
+   ═══════════════════════════════════════════ */
+
+#done-card button {
+    background: var(--accent);
+    color: #000;
+    font-weight: 600;
+    margin: 6px;
+}
+
+#done-card button:first-of-type {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+}
+
+#done-card button:first-of-type:hover {
+    background: rgba(108, 155, 255, 0.1);
+}
+
 /* Responsive */
 @media (max-width: 900px) {
     #quiz-view {
@@ -931,6 +1351,7 @@ button {
     #app { padding: 12px; }
     #quiz-card { padding: 20px; }
     .action-buttons { flex-direction: column; }
+    .open-action-buttons { flex-direction: column; }
     #quiz-view {
         --left-w: 200px;
         --right-w: 260px;

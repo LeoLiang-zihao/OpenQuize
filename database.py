@@ -30,10 +30,11 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             set_id INTEGER NOT NULL,
             question_text TEXT NOT NULL,
-            options TEXT NOT NULL,          -- JSON: ["opt_a", "opt_b", ...]
-            correct_index INTEGER NOT NULL, -- 0-based
-            explanation TEXT NOT NULL,      -- JSON: {"correct": "...", "options": {"a": "...", ...}}
+            options TEXT NOT NULL,          -- JSON: ["opt_a", "opt_b", ...] or "[]" for open questions
+            correct_index INTEGER NOT NULL, -- 0-based, -1 for open questions
+            explanation TEXT NOT NULL,      -- JSON: {"correct": "...", "options": {"a": "...", ...}} or answer text for open
             category TEXT DEFAULT '',
+            type TEXT DEFAULT 'mcq',       -- 'mcq' or 'open'
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (set_id) REFERENCES question_sets(id)
         );
@@ -58,6 +59,14 @@ def init_db():
             FOREIGN KEY (set_id) REFERENCES question_sets(id),
             FOREIGN KEY (question_id) REFERENCES questions(id)
         );
+        CREATE TABLE IF NOT EXISTS question_chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question_id INTEGER NOT NULL,
+            role TEXT NOT NULL,             -- 'user' or 'assistant'
+            content TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (question_id) REFERENCES questions(id)
+        );
     """)
     conn.commit()
 
@@ -67,19 +76,32 @@ def init_db():
         conn.execute("ALTER TABLE question_sets ADD COLUMN sort_order INTEGER DEFAULT 0")
         conn.commit()
 
+    # Add type column to questions if not exists
+    q_cols = [row[1] for row in conn.execute("PRAGMA table_info(questions)").fetchall()]
+    if "type" not in q_cols:
+        conn.execute("ALTER TABLE questions ADD COLUMN type TEXT DEFAULT 'mcq'")
+        conn.commit()
+
+    # Add set_type column to question_sets if not exists
+    qs_cols = [row[1] for row in conn.execute("PRAGMA table_info(question_sets)").fetchall()]
+    if "set_type" not in qs_cols:
+        conn.execute("ALTER TABLE question_sets ADD COLUMN set_type TEXT DEFAULT 'mcq'")
+        conn.commit()
+
     conn.close()
 
 
 # ── Question Set CRUD ──
 
-def create_question_set(name: str, source_file: str = "", prompt: str = "") -> int:
+def create_question_set(name: str, source_file: str = "", prompt: str = "",
+                        set_type: str = "mcq") -> int:
     conn = get_conn()
     max_order = conn.execute(
         "SELECT COALESCE(MAX(sort_order), 0) FROM question_sets"
     ).fetchone()[0]
     cur = conn.execute(
-        "INSERT INTO question_sets (name, source_file, prompt, sort_order) VALUES (?, ?, ?, ?)",
-        (name, source_file, prompt, max_order + 1),
+        "INSERT INTO question_sets (name, source_file, prompt, sort_order, set_type) VALUES (?, ?, ?, ?, ?)",
+        (name, source_file, prompt, max_order + 1, set_type),
     )
     conn.commit()
     set_id = cur.lastrowid
@@ -100,16 +122,22 @@ def get_all_question_sets() -> list[dict]:
 
 def delete_question_set(set_id: int):
     conn = get_conn()
-    # Delete in dependency order: chat_messages -> progress -> questions -> question_sets
-    conn.execute("DELETE FROM chat_messages WHERE set_id = ?", (set_id,))
-    conn.execute(
-        "DELETE FROM progress WHERE question_id IN "
-        "(SELECT id FROM questions WHERE set_id = ?)", (set_id,)
-    )
-    conn.execute("DELETE FROM questions WHERE set_id = ?", (set_id,))
-    conn.execute("DELETE FROM question_sets WHERE id = ?", (set_id,))
-    conn.commit()
-    conn.close()
+    try:
+        # Delete in dependency order (all FK children before parents)
+        conn.execute(
+            "DELETE FROM question_chat_messages WHERE question_id IN "
+            "(SELECT id FROM questions WHERE set_id = ?)", (set_id,)
+        )
+        conn.execute("DELETE FROM chat_messages WHERE set_id = ?", (set_id,))
+        conn.execute(
+            "DELETE FROM progress WHERE question_id IN "
+            "(SELECT id FROM questions WHERE set_id = ?)", (set_id,)
+        )
+        conn.execute("DELETE FROM questions WHERE set_id = ?", (set_id,))
+        conn.execute("DELETE FROM question_sets WHERE id = ?", (set_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def reorder_question_sets(ordered_ids: list[int]):
@@ -126,12 +154,14 @@ def reorder_question_sets(ordered_ids: list[int]):
 # ── Question CRUD ──
 
 def add_question(set_id: int, question_text: str, options: list[str],
-                 correct_index: int, explanation: dict, category: str = "") -> int:
+                 correct_index: int, explanation, category: str = "",
+                 q_type: str = "mcq") -> int:
     conn = get_conn()
+    explanation_str = json.dumps(explanation) if isinstance(explanation, dict) else explanation
     cur = conn.execute(
-        "INSERT INTO questions (set_id, question_text, options, correct_index, explanation, category) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (set_id, question_text, json.dumps(options), correct_index, json.dumps(explanation), category),
+        "INSERT INTO questions (set_id, question_text, options, correct_index, explanation, category, type) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (set_id, question_text, json.dumps(options), correct_index, explanation_str, category, q_type),
     )
     conn.commit()
     qid = cur.lastrowid
@@ -144,6 +174,16 @@ def add_question(set_id: int, question_text: str, options: list[str],
     return qid
 
 
+def _parse_question_row(d: dict) -> dict:
+    """Parse JSON fields in a question row, handling both MCQ and open types."""
+    d["options"] = json.loads(d["options"])
+    try:
+        d["explanation"] = json.loads(d["explanation"])
+    except (json.JSONDecodeError, TypeError):
+        pass  # open questions store explanation as plain text
+    return d
+
+
 def get_questions_by_set(set_id: int) -> list[dict]:
     conn = get_conn()
     rows = conn.execute(
@@ -153,13 +193,7 @@ def get_questions_by_set(set_id: int) -> list[dict]:
         (set_id,),
     ).fetchall()
     conn.close()
-    result = []
-    for r in rows:
-        d = dict(r)
-        d["options"] = json.loads(d["options"])
-        d["explanation"] = json.loads(d["explanation"])
-        result.append(d)
-    return result
+    return [_parse_question_row(dict(r)) for r in rows]
 
 
 def get_review_queue(set_id: int) -> list[dict]:
@@ -173,13 +207,7 @@ def get_review_queue(set_id: int) -> list[dict]:
         (set_id,),
     ).fetchall()
     conn.close()
-    result = []
-    for r in rows:
-        d = dict(r)
-        d["options"] = json.loads(d["options"])
-        d["explanation"] = json.loads(d["explanation"])
-        result.append(d)
-    return result
+    return [_parse_question_row(dict(r)) for r in rows]
 
 
 def get_set_stats(set_id: int) -> dict:
@@ -245,11 +273,93 @@ def add_chat_message(set_id: int, role: str, content: str, question_id: int | No
     return msg_id
 
 
-def get_chat_history(set_id: int, limit: int = 50) -> list[dict]:
+def get_chat_history(set_id: int, question_id: int | None = None, limit: int = 50) -> list[dict]:
+    conn = get_conn()
+    if question_id is not None:
+        rows = conn.execute(
+            "SELECT * FROM chat_messages WHERE set_id = ? AND question_id = ? ORDER BY created_at ASC LIMIT ?",
+            (set_id, question_id, limit),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM chat_messages WHERE set_id = ? AND question_id IS NULL ORDER BY created_at ASC LIMIT ?",
+            (set_id, limit),
+        ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def delete_chat_history(set_id: int, question_id: int | None = None):
+    """Delete chat history for a specific question in a set."""
+    conn = get_conn()
+    if question_id is not None:
+        conn.execute(
+            "DELETE FROM chat_messages WHERE set_id = ? AND question_id = ?",
+            (set_id, question_id),
+        )
+    else:
+        conn.execute(
+            "DELETE FROM chat_messages WHERE set_id = ? AND question_id IS NULL",
+            (set_id,),
+        )
+    conn.commit()
+    conn.close()
+
+
+def delete_question_chat_history(question_id: int):
+    """Delete guided dialogue chat history for a specific question."""
+    conn = get_conn()
+    conn.execute(
+        "DELETE FROM question_chat_messages WHERE question_id = ?",
+        (question_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+# ── Reset Progress ──
+
+def reset_set_progress(set_id: int):
+    """Reset all progress for a question set (re-do all questions)."""
+    conn = get_conn()
+    conn.execute(
+        "UPDATE progress SET times_seen = 0, times_correct = 0, mastered = 0, last_seen_at = NULL "
+        "WHERE question_id IN (SELECT id FROM questions WHERE set_id = ?)",
+        (set_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+# ── Per-Question Chat (Guided Dialogue) ──
+
+def add_question_chat_message(question_id: int, role: str, content: str) -> int:
+    conn = get_conn()
+    cur = conn.execute(
+        "INSERT INTO question_chat_messages (question_id, role, content) VALUES (?, ?, ?)",
+        (question_id, role, content),
+    )
+    conn.commit()
+    msg_id = cur.lastrowid
+    conn.close()
+    return msg_id
+
+
+def get_question_chat_history(question_id: int, limit: int = 50) -> list[dict]:
     conn = get_conn()
     rows = conn.execute(
-        "SELECT * FROM chat_messages WHERE set_id = ? ORDER BY created_at ASC LIMIT ?",
-        (set_id, limit),
+        "SELECT * FROM question_chat_messages WHERE question_id = ? ORDER BY created_at ASC LIMIT ?",
+        (question_id, limit),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+
+def get_set_type(set_id: int) -> str:
+    """Get the type of a question set."""
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT set_type FROM question_sets WHERE id = ?", (set_id,)
+    ).fetchone()
+    conn.close()
+    return row["set_type"] if row else "mcq"

@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Open Anki Quiz</title>
     <link rel="stylesheet" href="/static/style.css">
+    <!-- KaTeX for LaTeX rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+    <!-- marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@14.0.0/marked.min.js"></script>
 </head>
 <body>
     <div id="app">
@@ -16,11 +22,18 @@
         <!-- Home: Upload + Set list -->
         <div id="home-view">
             <section class="upload-section">
-                <h2>Import Questions from PDF</h2>
+                <h2>Import Questions</h2>
                 <form id="upload-form">
                     <div class="form-group">
-                        <label for="pdf-file">PDF File</label>
-                        <input type="file" id="pdf-file" accept=".pdf" required>
+                        <label for="set-type">Question Type</label>
+                        <select id="set-type">
+                            <option value="mcq">Multiple Choice (MCQ)</option>
+                            <option value="open">Open / Math Problems</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pdf-file">File (PDF or DOCX)</label>
+                        <input type="file" id="pdf-file" accept=".pdf,.docx" multiple required>
                     </div>
                     <div class="form-group">
                         <label for="set-name">Set Name (optional)</label>
@@ -28,10 +41,10 @@
                     </div>
                     <div class="form-group">
                         <label for="prompt">Prompt / Instructions (optional)</label>
-                        <textarea id="prompt" rows="3" placeholder="e.g. Extract all multiple choice questions and generate explanations..."></textarea>
+                        <textarea id="prompt" rows="3" placeholder="e.g. Extract all questions and generate explanations..."></textarea>
                     </div>
                     <div class="form-group">
-                        <label for="references">Reference PDF paths (comma-separated, optional)</label>
+                        <label for="references">Reference file paths (comma-separated, optional)</label>
                         <textarea id="references" rows="2" placeholder="e.g. /path/to/Lecture 01.pdf, /path/to/Lecture 02.pdf"></textarea>
                     </div>
                     <button type="submit" id="upload-btn">Upload & Extract</button>
@@ -79,15 +92,59 @@
                 <div id="quiz-card">
                     <div id="question-category" class="category-tag"></div>
                     <div id="question-number" class="question-num"></div>
-                    <div id="question-text" class="question-text"></div>
+                    <div id="question-text" class="question-text markdown-content"></div>
+
+                    <!-- MCQ options (hidden for open questions) -->
                     <div id="options-list" class="options-list"></div>
 
-                    <!-- Shown after answering -->
+                    <!-- "I don't know" button (shown before answering for MCQ) -->
+                    <div id="idk-area" class="hidden">
+                        <button id="idk-btn" class="idk-btn" onclick="revealMCQAnswer()">I don't know</button>
+                    </div>
+
+                    <!-- Open question area -->
+                    <div id="open-question-area" class="hidden">
+                        <div id="open-answer-area" class="hidden">
+                            <h4>Answer Key</h4>
+                            <div id="open-answer-content" class="markdown-content"></div>
+                        </div>
+
+                        <!-- Guided dialogue -->
+                        <div id="guided-dialogue" class="guided-dialogue">
+                            <div class="guided-header">
+                                <span>Guided Discussion</span>
+                                <button class="clear-chat-btn" onclick="clearGuidedChat()" title="Clear dialogue history">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                </button>
+                            </div>
+                            <div id="guided-messages" class="guided-messages"></div>
+                            <div class="guided-input-area">
+                                <div class="guided-input-wrapper">
+                                    <textarea id="guided-input" placeholder="Type your understanding of the problem..." rows="2"></textarea>
+                                    <button id="voice-btn" class="voice-btn" onclick="toggleVoiceRecording()" title="Voice input">
+                                        <svg id="mic-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                                        <svg id="mic-recording-icon" class="hidden" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                                    </button>
+                                </div>
+                                <button id="guided-send-btn" onclick="sendGuidedMessage()">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="open-action-buttons">
+                            <button id="reveal-btn" class="reveal-btn" onclick="revealOpenAnswer()">Show Answer</button>
+                            <button id="open-master-btn" class="master-btn" onclick="markMastered()">Mastered</button>
+                            <button id="open-next-btn" class="next-btn" onclick="nextQuestion()">Next</button>
+                        </div>
+                    </div>
+
+                    <!-- MCQ result area (shown after answering) -->
                     <div id="result-area" class="hidden">
                         <div id="result-banner"></div>
-                        <div id="explanation-area"></div>
+                        <div id="explanation-area" class="markdown-content"></div>
                         <div class="action-buttons">
-                            <button id="master-btn" class="master-btn" onclick="markMastered()">I know this</button>
+                            <button id="master-btn" class="master-btn hidden" onclick="markMastered()">Mastered</button>
                             <button id="next-btn" class="next-btn" onclick="nextQuestion()">Next</button>
                         </div>
                     </div>
@@ -97,6 +154,7 @@
                 <div id="done-card" class="hidden">
                     <h2>All Done!</h2>
                     <p>You've mastered all questions in this set.</p>
+                    <button onclick="resetAndRestart()">Restart Set</button>
                     <button onclick="showHome()">Back to Home</button>
                 </div>
             </main>
@@ -104,7 +162,12 @@
             <!-- Right: Chat Sidebar -->
             <aside id="chat-sidebar" class="sidebar sidebar-right">
                 <div class="sidebar-content">
-                    <h3>AI Assistant</h3>
+                    <div class="sidebar-header">
+                        <h3>AI Assistant</h3>
+                        <button class="clear-chat-btn" onclick="clearSidebarChat()" title="Clear chat history">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </div>
                     <div id="chat-messages"></div>
                     <div class="chat-input-area">
                         <textarea id="chat-input" placeholder="Ask about this question..." rows="1"></textarea>
@@ -138,11 +201,11 @@
                         <textarea id="append-prompt" rows="4" placeholder="e.g. Generate 10 questions about hypothesis testing..." required></textarea>
                     </div>
                     <div class="form-group">
-                        <label for="append-file">PDF File (optional)</label>
-                        <input type="file" id="append-file" accept=".pdf">
+                        <label for="append-file">File (optional, PDF or DOCX)</label>
+                        <input type="file" id="append-file" accept=".pdf,.docx" multiple>
                     </div>
                     <div class="form-group">
-                        <label for="append-references">Reference PDF paths (optional)</label>
+                        <label for="append-references">Reference file paths (optional)</label>
                         <textarea id="append-references" rows="2" placeholder="e.g. /path/to/Lecture 03.pdf"></textarea>
                     </div>
                     <div id="append-status" class="hidden"></div>
