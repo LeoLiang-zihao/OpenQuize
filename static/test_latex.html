@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaTeX Rendering Test</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@14.0.0/marked.min.js"></script>
+</head>
+<body>
+    <div id="app" style="max-width: 800px; margin: 0 auto; padding: 20px;">
+        <header>
+            <h1>LaTeX Rendering Test</h1>
+        </header>
+
+        <div id="test-content" class="markdown-content" style="background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 28px; margin-top: 20px;">
+            Loading...
+        </div>
+
+        <div style="margin-top: 20px; padding: 16px; background: var(--card); border-radius: 12px;">
+            <h3>Test Status</h3>
+            <div id="test-status"></div>
+        </div>
+    </div>
+
+    <script>
+    // Copy renderMarkdown from app.js
+    function esc(str) {
+        const d = document.createElement("div");
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    function renderMarkdown(text) {
+        if (!text) return "";
+
+        let processed = text;
+        const displayMathBlocks = [];
+        processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, content) => {
+            const idx = displayMathBlocks.length;
+            displayMathBlocks.push(content);
+            return `%%DISPLAY_MATH_${idx}%%`;
+        });
+
+        const inlineMathBlocks = [];
+        processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, content) => {
+            const idx = inlineMathBlocks.length;
+            inlineMathBlocks.push(content);
+            return `%%INLINE_MATH_${idx}%%`;
+        });
+
+        let html;
+        if (typeof marked !== "undefined") {
+            marked.setOptions({ breaks: true, gfm: true });
+            html = marked.parse(processed);
+        } else {
+            html = esc(processed).replace(/\n/g, "<br>");
+        }
+
+        displayMathBlocks.forEach((content, idx) => {
+            try {
+                const rendered = katex.renderToString(content.trim(), {
+                    displayMode: true,
+                    throwOnError: false,
+                    trust: true,
+                });
+                html = html.replace(`%%DISPLAY_MATH_${idx}%%`, rendered);
+            } catch (e) {
+                html = html.replace(`%%DISPLAY_MATH_${idx}%%`, `<pre class="katex-error">${esc(content)}</pre>`);
+            }
+        });
+
+        inlineMathBlocks.forEach((content, idx) => {
+            try {
+                const rendered = katex.renderToString(content.trim(), {
+                    displayMode: false,
+                    throwOnError: false,
+                    trust: true,
+                });
+                html = html.replace(`%%INLINE_MATH_${idx}%%`, rendered);
+            } catch (e) {
+                html = html.replace(`%%INLINE_MATH_${idx}%%`, `<code class="katex-error">${esc(content)}</code>`);
+            }
+        });
+
+        return html;
+    }
+
+    // Test content from the user's sample
+    const testContent = `## 1) Logistic regression: cross-entropy is convex in parameters
+
+Let \\(z_i = \\theta^\\top \\tilde x_i\\) where \\(\\tilde x_i\\) is \\(x_i\\) augmented with a 1 for the intercept, and \\(p_i=\\sigma(z_i)=\\frac{1}{1+e^{-z_i}}\\).
+
+The (binary) negative log-likelihood / cross-entropy can be written as
+\\[
+L(\\theta)=\\sum_{i=1}^n\\Big[-y_i\\log p_i-(1-y_i)\\log(1-p_i)\\Big]
+=\\sum_{i=1}^n\\Big(\\log(1+e^{z_i})-y_i z_i\\Big).
+\\]
+Differentiate:
+\\[
+\\nabla L(\\theta)=\\sum_{i=1}^n (p_i-y_i)\\tilde x_i
+\\]
+and the Hessian is
+\\[
+\\nabla^2 L(\\theta)=\\sum_{i=1}^n p_i(1-p_i)\\,\\tilde x_i\\tilde x_i^\\top.
+\\]
+Each term \\(p_i(1-p_i)\\,\\tilde x_i\\tilde x_i^\\top\\) is positive semidefinite because \\(p_i(1-p_i)\\ge 0\\) and \\(\\tilde x_i\\tilde x_i^\\top\\succeq 0\\). A sum of PSD matrices is PSD, hence
+\\[
+\\nabla^2 L(\\theta)\\succeq 0 \\quad\\Rightarrow\\quad L(\\theta)\\ \\text{is convex in }\\theta.
+\\]
+
+---
+
+## 2) One-hidden-unit ReLU net: cross-entropy is **not** convex in parameters (counterexample)
+
+Consider the network in the hint:
+\\[
+f_\\theta(x)=\\sigma(\\max\\{0,\\theta x\\}).
+\\]
+For the single data point \\((x,y)=(1,1)\\), the cross-entropy loss is
+\\[
+\\ell(\\theta)=-\\log f_\\theta(1)=-\\log \\sigma(\\max\\{0,\\theta\\}).
+\\]
+This is piecewise:
+
+* If \\(\\theta\\le 0\\): \\(\\max\\{0,\\theta\\}=0\\), so \\(\\ell(\\theta)=-\\log\\sigma(0)=\\log 2\\) (constant).
+* If \\(\\theta>0\\): \\(\\ell(\\theta)=-\\log\\sigma(\\theta)=\\log(1+e^{-\\theta})\\).
+
+Pick any \\(a\\in(0,1)\\) and set \\(\\theta_1=-a,\\ \\theta_2=a\\). Then
+\\[
+\\ell(\\theta_1)=\\log 2,\\qquad
+\\ell(\\theta_2)=\\log(1+e^{-a})<\\log 2,
+\\]
+and at the midpoint \\(\\tfrac{\\theta_1+\\theta_2}{2}=0\\),
+\\[
+\\ell(0)=\\log 2.
+\\]
+Convexity would require
+\\[
+\\ell(0)\\le \\tfrac{1}{2}\\ell(-a)+\\tfrac{1}{2}\\ell(a),
+\\]
+but here
+\\[
+\\tfrac{1}{2}\\ell(-a)+\\tfrac{1}{2}\\ell(a)
+=\\tfrac{1}{2}\\log 2+\\tfrac{1}{2}\\log(1+e^{-a})
+<\\log 2=\\ell(0),
+\\]
+a direct violation. Therefore the cross-entropy loss is **not** convex in \\(\\theta\\) for this simple ReLU network.
+
+*(Geometrically: the loss is flat on \\(\\theta\\le 0\\) and then bends down for \\(\\theta>0\\), creating a non-convex "kink" at 0.)*`;
+
+    // Wait for KaTeX to load
+    function waitForKaTeX() {
+        return new Promise((resolve) => {
+            if (typeof katex !== "undefined") {
+                resolve();
+                return;
+            }
+            const check = setInterval(() => {
+                if (typeof katex !== "undefined") {
+                    clearInterval(check);
+                    resolve();
+                }
+            }, 100);
+        });
+    }
+
+    async function runTest() {
+        await waitForKaTeX();
+
+        const container = document.getElementById("test-content");
+        const statusEl = document.getElementById("test-status");
+
+        try {
+            const rendered = renderMarkdown(testContent);
+            container.innerHTML = rendered;
+
+            // Check for errors
+            const errors = container.querySelectorAll(".katex-error");
+            const katexElements = container.querySelectorAll(".katex");
+            const displayMath = container.querySelectorAll(".katex-display");
+
+            let statusHtml = `<p style="color: var(--correct);">Rendered successfully!</p>`;
+            statusHtml += `<p>KaTeX inline elements: ${katexElements.length - displayMath.length}</p>`;
+            statusHtml += `<p>KaTeX display math blocks: ${displayMath.length}</p>`;
+
+            if (errors.length > 0) {
+                statusHtml += `<p style="color: var(--wrong);">Errors: ${errors.length}</p>`;
+            } else {
+                statusHtml += `<p style="color: var(--correct);">No rendering errors!</p>`;
+            }
+
+            // Check markdown features
+            const h2s = container.querySelectorAll("h2");
+            const strongs = container.querySelectorAll("strong");
+            const hrs = container.querySelectorAll("hr");
+            const lists = container.querySelectorAll("ul");
+
+            statusHtml += `<p>H2 headings: ${h2s.length} (expected 2)</p>`;
+            statusHtml += `<p>Bold text: ${strongs.length} (expected >=1)</p>`;
+            statusHtml += `<p>Horizontal rules: ${hrs.length} (expected 1)</p>`;
+            statusHtml += `<p>Unordered lists: ${lists.length} (expected >=1)</p>`;
+
+            statusEl.innerHTML = statusHtml;
+        } catch (err) {
+            container.innerHTML = `<pre style="color: var(--wrong);">Error: ${err.message}\n${err.stack}</pre>`;
+            statusEl.innerHTML = `<p style="color: var(--wrong);">Test failed: ${err.message}</p>`;
+        }
+    }
+
+    runTest();
+    </script>
+</body>
+</html>
